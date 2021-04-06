@@ -127,23 +127,15 @@ void OneQubitEvolution(complexd *in, complexd *out, complexd U[2][2], int n, int
         if (rank < rank_change) {
             rc = MPI_Send(in, seg_size, MPI_DOUBLE_COMPLEX, rank_change, 10, MPI_COMM_WORLD);
             MPI_Recv(out, seg_size, MPI_DOUBLE_COMPLEX, rank_change, 10, MPI_COMM_WORLD, &stat3);
-            //#pragma omp parallel shared(out, in, U)
-            //{ 
-              //  #pragma omp for schedule(static)
             for (int i = 0; i < seg_size; i++) {
                 out[i] = U[0][0] * in[i] + U[0][1] * out[i];
             }
-            //}
         } else {
             MPI_Recv(out, seg_size, MPI_DOUBLE_COMPLEX, rank_change, 10, MPI_COMM_WORLD, &stat3);
             rc = MPI_Send(in, seg_size, MPI_DOUBLE_COMPLEX, rank_change, 10, MPI_COMM_WORLD);
-            //#pragma omp parallel shared(out, in, U)
-            //{ 
-                //#pragma omp for schedule(static)
             for (int i = 0; i < seg_size; i++) {
                 out[i] = U[1][0] * out[i] + U[1][1] * in[i];
             }
-           // }
         }
     } else {
         int cr = 0;
@@ -153,16 +145,12 @@ void OneQubitEvolution(complexd *in, complexd *out, complexd U[2][2], int n, int
         }
         int shift = cr - q;
         int pow = 1 << (shift);
-        //#pragma omp parallel shared(out, in, U)
-          //  {
-            //#pragma omp for schedule(static)
         for (int i = 0; i < seg_size; i++) {
             int i0 = i & ~pow;
             int i1 = i | pow;
             int iq = (i & pow) >> shift;
             out[i] = U[iq][0] * in[i0] + U[iq][1] * in[i1];
         }
-        //}
     }
 }
 
@@ -301,7 +289,7 @@ int main(int argc, char **argv) {
     } else {
         double distance = dist(need, need_new, rank, seg_size, size);
         if (rank == 0){
-          //  cout << distance << endl;
+            cout << distance << endl;
         }
     }
     if(rank == 0){
