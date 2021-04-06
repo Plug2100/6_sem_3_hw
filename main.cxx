@@ -116,7 +116,7 @@ complexd* generate_condition(unsigned long long seg_size, int rank, int size){
 
 
 
-void OneQubitEvolution(complexd *in, complexd *out, complexd U[2][2], int n, int q, int rank, unsigned long long seg_size) {
+void OneQubitEvolution(complexd *in, complexd *out, complexd* U, int n, int q, int rank, unsigned long long seg_size) {
     int first_index = rank * seg_size;
     int rank_change = first_index ^(1u << (q - 1));     
     rank_change /= seg_size;
@@ -128,13 +128,13 @@ void OneQubitEvolution(complexd *in, complexd *out, complexd U[2][2], int n, int
             rc = MPI_Send(in, seg_size, MPI_DOUBLE_COMPLEX, rank_change, 10, MPI_COMM_WORLD);
             MPI_Recv(out, seg_size, MPI_DOUBLE_COMPLEX, rank_change, 10, MPI_COMM_WORLD, &stat3);
             for (int i = 0; i < seg_size; i++) {
-                out[i] = U[0][0] * in[i] + U[0][1] * out[i];
+                out[i] = U[0] * in[i] + U[1] * out[i];
             }
         } else {
             MPI_Recv(out, seg_size, MPI_DOUBLE_COMPLEX, rank_change, 10, MPI_COMM_WORLD, &stat3);
             rc = MPI_Send(in, seg_size, MPI_DOUBLE_COMPLEX, rank_change, 10, MPI_COMM_WORLD);
             for (int i = 0; i < seg_size; i++) {
-                out[i] = U[1][0] * out[i] + U[1][1] * in[i];
+                out[i] = U[2] * out[i] + U[3] * in[i];
             }
         }
     } else {
@@ -149,7 +149,7 @@ void OneQubitEvolution(complexd *in, complexd *out, complexd U[2][2], int n, int
             int i0 = i & ~pow;
             int i1 = i | pow;
             int iq = (i & pow) >> shift;
-            out[i] = U[iq][0] * in[i0] + U[iq][1] * in[i1];
+            out[i] = U[iq*2] * in[i0] + U[iq*2+1] * in[i1];
         }
     }
 }
@@ -234,29 +234,31 @@ int main(int argc, char **argv) {
         V = read(input, rank, seg_size);
     }
     struct timeval start, stop;
-    complexd U[2][2];
-    U[0][0] = 1 / sqrt(2);
-    U[0][1] = 1 / sqrt(2);
-    U[1][0] = 1 / sqrt(2);
-    U[1][1] = -1 / sqrt(2);
+    complexd *U;
+    U = (complexd*) malloc(sizeof(complexd) * 4);
+    U[0] = 1 / sqrt(2);
+    U[1] = 1 / sqrt(2);
+    U[2] = 1 / sqrt(2);
+    U[3] = -1 / sqrt(2);
     MPI_Status stat1;
     int error = 0;
     int rc1;
-    double begin = MPI_Wtime();
     for(k = 1; k < n+1; k++){
         OneQubitEvolution(V, need, U, n, k, rank, seg_size);
     }
-    complexd U_noised[2][2];
+    complexd *U_noised;
+    U_noised = (complexd*) malloc(sizeof(complexd) * 4);
     double thetta = 0;
+    double begin = MPI_Wtime();
     for (int k = 1; k < n + 1; k++) {
         if (rank == 0) {
             thetta = normal_dis_gen();
         }
         MPI_Bcast(&thetta, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        U_noised[0][0] = U[0][0] * cos(thetta) - U[0][1] * sin(thetta);
-        U_noised[0][1] = U[0][0] * sin(thetta) + U[0][1] * cos(thetta);
-        U_noised[1][0] = U[1][0] * cos(thetta) - U[1][1] * sin(thetta);
-        U_noised[1][1] = U[1][0] * sin(thetta) + U[1][1] * cos(thetta);
+        U_noised[0] = U[0] * cos(thetta) - U[1] * sin(thetta);
+        U_noised[1] = U[0] * sin(thetta) + U[1] * cos(thetta);
+        U_noised[2] = U[2] * cos(thetta) - U[3] * sin(thetta);
+        U_noised[3] = U[2] * sin(thetta) + U[3] * cos(thetta);
         OneQubitEvolution(V, need_new, U_noised, n, k, rank, seg_size);
     }
     double end = MPI_Wtime();
@@ -294,7 +296,7 @@ int main(int argc, char **argv) {
     }
     if(rank == 0){
         ofstream a;
-        a.open("time_cont.txt", std::ios::app);
+        a.open("time_check6.txt", std::ios::app);
         a << end - begin << " " << size << endl;
         a.close();
     }
@@ -303,3 +305,5 @@ int main(int argc, char **argv) {
     delete[] need;
     delete[] need_new;
 }
+
+//все матрицы одномерным массивом, время только шума; 
